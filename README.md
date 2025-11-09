@@ -47,7 +47,7 @@ Kullanılan başlıca teknolojiler: **Python**, veri işleme için **Pandas**, a
 📸 **Simülasyon Fotoğrafları:**
 
 ![Ghost Charge 1](https://github.com/BSG-8/CanBus-Huseyin-Enes-Erturk/blob/main/Simulations/ghost-charge-simulation/photos/normal_graphic.png)
-![Ghost Charge 2](https://github.com/BSG-8/CanBus-Huseyin-Enes-Erturk/blob/main/Simulations/ghost-charge-simulation/photos/normal_logs.jpg)
+![Ghost Charge 2](https://github.com/BSG-8/CanBus-Huseyin-Enes-Erturk/blob/main/Simulations/ghost-charge-simulation/photos/normal_logs.png)
 ![Ghost Charge 3](https://github.com/BSG-8/CanBus-Huseyin-Enes-Erturk/blob/main/Simulations/ghost-charge-simulation/photos/with_attack_graphics.png)
 ![Ghost Charge 4](https://github.com/BSG-8/CanBus-Huseyin-Enes-Erturk/blob/main/Simulations/ghost-charge-simulation/photos/with_attack_graphics_1.png)
 ![Ghost Charge 5](https://github.com/BSG-8/CanBus-Huseyin-Enes-Erturk/blob/main/Simulations/ghost-charge-simulation/photos/with_attack_logs.png)
