@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hayalet Şarj Simülatörü</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body class="bg-gray-900 text-gray-200 min-h-screen font-sans">
+
+    <div class="max-w-7xl mx-auto p-4 sm:p-8">
+        
+        <h1 class="text-3xl sm:text-4xl font-bold text-center text-blue-400 mb-6">
+            Hayalet Şarj Görsel Simülatörü
+        </h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex flex-col justify-between">
+                <h2 class="text-xl font-semibold mb-3 text-gray-300">Simülasyon Kontrolü</h2>
+                <button id="startButton" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out text-lg">
+                    ⚡️ ŞARJI BAŞLAT
+                </button>
+            </div>
+
+            <div class="bg-gray-800 p-4 rounded-lg shadow-lg flex flex-col">
+                <h2 class="text-xl font-semibold mb-3 text-gray-300">Saldırı Modu</h2>
+                <label for="attackToggle" class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" value="" id="attackToggle" class="sr-only peer">
+                    <div class="w-14 h-8 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-red-600"></div>
+                    <span id="attackStatus" class="ml-3 text-lg font-medium text-gray-400">KAPALI ✅</span>
+                </label>
+                <p class="text-sm text-gray-400 mt-2">Aktifken, CP (Köprü) CSMS'e sahte veri (0.01 kWh) raporlar.</p>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6">
+            <h2 class="text-2xl font-semibold mb-4 text-center">Canlı Gösterge Paneli</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="text-center bg-gray-700 p-6 rounded-lg">
+                    <h3 class="text-lg font-medium text-blue-300 mb-2">FİZİKSEL TÜKETİM (Sayaç ⚡️)</h3>
+                    <p id="fizikselKwh" class="text-5xl font-bold text-blue-400">0.00 <span class="text-2xl">kWh</span></p>
+                    <p class="text-sm text-gray-400 mt-1">(SAYAÇ -> CAN-bus)</p>
+                </div>
+                <div class="text-center bg-gray-700 p-6 rounded-lg">
+                    <h3 class="text-lg font-medium text-red-300 mb-2">RAPORLANAN TÜKETİM (CSMS 🖥️)</h3>
+                    <p id="raporlananKwh" class="text-5xl font-bold text-red-400">0.00 <span class="text-2xl">kWh</span></p>
+                    <p class="text-sm text-gray-400 mt-1">(CP -> CSMS)</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg mb-6">
+            <h2 class="text-2xl font-semibold mb-4 text-center">Enerji Tüketim Grafiği</h2>
+            <canvas id="enerjiGrafigi"></canvas>
+        </div>
+
+        <div class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4">Canlı Sistem Log Akışı</h2>
+            <div id="logAkisi" class="h-64 bg-black text-sm font-mono p-4 rounded-md overflow-y-scroll overscroll-contain">
+                <p class="text-gray-500">WebSocket bağlantısı bekleniyor...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM Elementlerini Seçme ---
+        const startButton = document.getElementById('startButton');
+        const attackToggle = document.getElementById('attackToggle');
+        const attackStatus = document.getElementById('attackStatus');
+        const fizikselKwhEl = document.getElementById('fizikselKwh');
+        const raporlananKwhEl = document.getElementById('raporlananKwh');
+        const logAkisiEl = document.getElementById('logAkisi');
+        const enerjiGrafigiEl = document.getElementById('enerjiGrafigi');
+        
+        let ws; // WebSocket bağlantısını tutacak değişken
+        let enerjiChart; // Grafik objesini tutacak değişken (DÜZELTİLDİ!)
+        let isRunning = false; // Simülasyonun durumunu tutar
+
+        // --- Loglama Fonksiyonu ---
+        function log(prefix, message, color = 'text-gray-300') {
+            const p = document.createElement('p');
+            const time = new Date().toLocaleTimeString();
+            
+            const prefixSpan = document.createElement('span');
+            prefixSpan.className = `font-bold ${color} mr-2`;
+            prefixSpan.textContent = `${time} [${prefix}]:`;
+            
+            const msgSpan = document.createElement('span');
+            msgSpan.className = 'text-gray-100';
+            msgSpan.textContent = message;
+            
+            p.appendChild(prefixSpan);
+            p.appendChild(msgSpan);
+            
+            logAkisiEl.appendChild(p);
+            // Otomatik olarak en alta kaydır
+            logAkisiEl.scrollTop = logAkisiEl.scrollHeight;
+        }
+
+        // --- Grafik Kurulumu ---
+        function initChart() {
+            const ctx = enerjiGrafigiEl.getContext('2d');
+            enerjiChart = new Chart(ctx, {  // DÜZELTİLDİ: energiChart -> enerjiChart
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Fiziksel Tüketim (Sayaç)',
+                            data: [],
+                            borderColor: 'rgb(96, 165, 250)',
+                            backgroundColor: 'rgba(96, 165, 250, 0.5)',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Raporlanan Tüketim (CSMS)',
+                            data: [],
+                            borderColor: 'rgb(248, 113, 113)',
+                            backgroundColor: 'rgba(248, 113, 113, 0.5)',
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'second',
+                                tooltipFormat: 'HH:mm:ss',
+                                displayFormats: {
+                                    second: 'HH:mm:ss'
+                                }
+                            },
+                            title: { display: true, text: 'Zaman', color: 'white' },
+                            ticks: { color: 'white' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Tüketim (kWh)', color: 'white' },
+                            ticks: { color: 'white' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: 'white' } }
+                    }
+                }
+            });
+        }
+
+        // --- WebSocket Bağlantı Fonksiyonu ---
+        function connectWebSocket() {
+            ws = new WebSocket("ws://127.0.0.1:8000/ws");
+
+            ws.onopen = () => {
+                logAkisiEl.innerHTML = '';
+                log("SİSTEM ⚙️", "Backend sunucusuna başarıyla bağlandı.", "text-green-400");
+            };
+
+            ws.onclose = () => {
+                log("SİSTEM 🛑", "Bağlantı koptu. 5 saniye içinde yeniden denenecek...", "text-red-400");
+                setTimeout(connectWebSocket, 5000);
+            };
+
+            ws.onerror = (err) => {
+                log("SİSTEM 🛑", "WebSocket Hatası. Sunucu (app.py) çalışıyor mu?", "text-red-400");
+            };
+
+            // --- Backend'den Gelen Mesajları İşleme ---
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                const now = new Date();
+
+                if (data.type === 'log') {
+                    let color = 'text-gray-300';
+                    if (data.prefix.includes('⚡️')) color = 'text-blue-300';
+                    if (data.prefix.includes('🖥️')) color = 'text-yellow-300';
+                    if (data.prefix.includes('💻')) color = 'text-red-400';
+                    
+                    log(data.prefix, data.message, color);
+
+                } else if (data.type === 'data') {
+                    if (data.data_type === 'fiziksel') {
+                        fizikselKwhEl.innerHTML = `${data.value.toFixed(2)} <span class="text-2xl">kWh</span>`;
+                        enerjiChart.data.datasets[0].data.push({ x: now, y: data.value });
+
+                    } else if (data.data_type === 'raporlanan') {
+                        raporlananKwhEl.innerHTML = `${data.value.toFixed(2)} <span class="text-2xl">kWh</span>`;
+                        enerjiChart.data.datasets[1].data.push({ x: now, y: data.value });
+                    }
+                    
+                    // Eski verileri sil (performans)
+                    if (enerjiChart.data.datasets[0].data.length > 100) {
+                        enerjiChart.data.datasets[0].data.shift();
+                        enerjiChart.data.datasets[1].data.shift();
+                    }
+                    enerjiChart.update('quiet');
+                }
+            };
+        }
+
+        // --- Olay Dinleyicileri ---
+        
+        // Başlat/Durdur Butonu
+        startButton.addEventListener('click', () => {
+            isRunning = !isRunning;
+            
+            if (isRunning) {
+                ws.send("START_SIM");
+                startButton.textContent = "🛑 ŞARJI DURDUR";
+                startButton.classList.remove('bg-green-600', 'hover:bg-green-700');
+                startButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                
+                // Grafiği temizle
+                enerjiChart.data.labels = [];
+                enerjiChart.data.datasets[0].data = [];
+                enerjiChart.data.datasets[1].data = [];
+                enerjiChart.update();
+                
+                // Göstergeleri sıfırla
+                fizikselKwhEl.innerHTML = `0.00 <span class="text-2xl">kWh</span>`;
+                raporlananKwhEl.innerHTML = `0.00 <span class="text-2xl">kWh</span>`;
+                
+            } else {
+                ws.send("STOP_SIM"); 
+                startButton.textContent = "⚡️ ŞARJI BAŞLAT";
+                startButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                startButton.classList.add('bg-green-600', 'hover:bg-green-700');
+            }
+        });
+
+        // Saldırı Modu Düğmesi
+        attackToggle.addEventListener('change', () => {
+            ws.send("TOGGLE_ATTACK");
+            
+            if (attackToggle.checked) {
+                attackStatus.textContent = "AKTİF 💻";
+                attackStatus.classList.remove('text-gray-400');
+                attackStatus.classList.add('text-red-400');
+            } else {
+                attackStatus.textContent = "KAPALI ✅";
+                attackStatus.classList.remove('text-red-400');
+                attackStatus.classList.add('text-gray-400');
+            }
+        });
+
+        // --- Başlangıç ---
+        document.addEventListener('DOMContentLoaded', () => {
+            initChart();
+            connectWebSocket();
+        });
+    </script>
+</body>
+</html>
