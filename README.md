@@ -54,7 +54,7 @@ Kullanılan başlıca teknolojiler: **Python**, veri işleme için **Pandas**, a
 
 🎥 **Simülasyon Videosu:**
 
-[Ghost Charge Simulation Video (MP4)](https://github.com/BSG-8/CanBus-Huseyin-Enes-Erturk/blob/main/Simulations/ghost-charge-simulation/videos/with_ui.mp4)
+[Ghost Charge Simulation Video (MP4)](https://drive.google.com/file/d/1hkTqKggJ1MNDsxu1vBtI4l1rNTGYm6Uk/view?usp=drive_link)
 
 ---
 
